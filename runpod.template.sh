@@ -203,6 +203,7 @@ create_pod() {
                 --arg gpuType "$RUNPOD_GPU_TYPE" \
                 --arg mountPath "$RUNPOD_VOLUME_MOUNT_PATH" \
                 --arg publicKey "$public_key" \
+                --arg dataCenterId "$RUNPOD_DATA_CENTER_ID" \
                 --argjson gpuCount "$RUNPOD_GPU_COUNT" \
                 --argjson containerDisk "$RUNPOD_CONTAINER_DISK_GB" \
                 --argjson volumeDisk "$RUNPOD_VOLUME_GB" \
@@ -216,6 +217,7 @@ create_pod() {
                     volumeInGb: $volumeDisk,
                     volumeMountPath: $mountPath,
                     ports: $ports,
+                    dataCenterIds: (if $dataCenterId == "" then [] else [$dataCenterId] end),
                     env: {
                         PUBLIC_KEY: $publicKey
                     }

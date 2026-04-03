@@ -94,6 +94,7 @@ class Hyperparameters:
     # GPTQ calibration
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
+    smoke_test = bool(int(os.environ.get("SMOKE_TEST", "0")))
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -1755,7 +1756,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"seed:{args.seed}")
+    log0(f"seed:{args.seed} smoke_test:{int(args.smoke_test)}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -1942,6 +1943,11 @@ def main() -> None:
         f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
     )
+    if args.smoke_test:
+        log0("smoke_test: skipping export, GPTQ, artifact packing, and final roundtrip eval")
+        if distributed:
+            dist.destroy_process_group()
+        return
     full_state_dict = base_model.state_dict()
     export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
     excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
