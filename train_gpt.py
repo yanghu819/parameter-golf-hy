@@ -754,7 +754,11 @@ def main() -> None:
     device = torch.device("cuda", local_rank)
     torch.cuda.set_device(device)
     if distributed:
-        dist.init_process_group(backend="nccl", device_id=device)
+        try:
+            dist.init_process_group(backend="nccl", device_id=device)
+        except TypeError:
+            # PyTorch 2.1 on the stable Runpod CUDA 11.8 image does not accept device_id.
+            dist.init_process_group(backend="nccl")
         dist.barrier()
     master_process = rank == 0
 
