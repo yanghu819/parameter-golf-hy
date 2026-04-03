@@ -100,6 +100,13 @@ class Hyperparameters:
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
     smoke_test = bool(int(os.environ.get("SMOKE_TEST", "0")))
     allow_fa3_fallback = bool(int(os.environ.get("ALLOW_FA3_FALLBACK", "0")))
+    disable_compile = bool(int(os.environ.get("DISABLE_COMPILE", "0")))
+
+
+def maybe_compile(obj, args: Hyperparameters):
+    if args.disable_compile:
+        return obj
+    return torch.compile(obj, dynamic=False, fullgraph=True)
 
 
 def _flash_attn_or_fallback(q: Tensor, k: Tensor, v: Tensor, *, causal: bool, allow_fallback: bool) -> Tensor:
@@ -1061,7 +1068,7 @@ def eval_val_sliding(
     token_count = torch.zeros((), device=device, dtype=torch.float64)
     byte_count = torch.zeros((), device=device, dtype=torch.float64)
     base_model.eval()
-    compiled_logits = torch.compile(base_model.forward_logits, dynamic=False, fullgraph=True)
+    compiled_logits = maybe_compile(base_model.forward_logits, args)
     with torch.inference_mode():
         for bi in range(0, len(my_windows), batch_seqs):
             batch_ws = my_windows[bi:bi + batch_seqs]
@@ -1686,7 +1693,7 @@ def main() -> None:
     restore_low_dim_params_to_fp32(base_model)
     # No DDP -- Parallel Muon handles bank grad communication via reduce-scatter,
     # and non-bank grads are manually all-reduced before Adam steps.
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = maybe_compile(base_model, args)
     model = compiled_model
 
     # Optimizer split:
@@ -1782,7 +1789,7 @@ def main() -> None:
         f"iterations:{args.iterations} warmup_steps:{args.warmup_steps} "
         f"max_wallclock_seconds:{args.max_wallclock_seconds:.3f}"
     )
-    log0(f"seed:{args.seed} smoke_test:{int(args.smoke_test)}")
+    log0(f"seed:{args.seed} smoke_test:{int(args.smoke_test)} disable_compile:{int(args.disable_compile)}")
     train_loader = DistributedTokenLoader(args.train_files, rank, world_size, device)
     def zero_grad_all() -> None:
         for opt in optimizers:
@@ -2114,7 +2121,7 @@ def main() -> None:
             m.float()
     restore_low_dim_params_to_fp32(eval_model)
     eval_model.load_state_dict(deq_state, strict=True)
-    compiled_eval = torch.compile(eval_model, dynamic=False, fullgraph=True)
+    compiled_eval = maybe_compile(eval_model, args)
     torch.cuda.synchronize()
     t_qeval = time.perf_counter()
     q_val_loss, q_val_bpb = eval_val(

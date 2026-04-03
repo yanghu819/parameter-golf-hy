@@ -54,6 +54,7 @@ export MASTER_PORT
 case "$MODE" in
     smoke)
         export SMOKE_TEST="${SMOKE_TEST:-1}"
+        export DISABLE_COMPILE="${DISABLE_COMPILE:-1}"
         export ITERATIONS="${ITERATIONS:-6}"
         export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-1}"
         export VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
@@ -64,6 +65,7 @@ case "$MODE" in
         ;;
     formal)
         export SMOKE_TEST="${SMOKE_TEST:-0}"
+        export DISABLE_COMPILE="${DISABLE_COMPILE:-0}"
         export BIGRAM_VOCAB_SIZE="${BIGRAM_VOCAB_SIZE:-3072}"
         export BIGRAM_DIM="${BIGRAM_DIM:-112}"
         export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4000}"
