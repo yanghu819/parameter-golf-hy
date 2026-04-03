@@ -40,17 +40,20 @@ main() {
     ensure_uv
 
     cd "$ROOT_DIR"
-    echo "Using Python ${PYTHON_VERSION}"
-    "$UV_BIN" python install "$PYTHON_VERSION"
     local venv_args=()
+    local venv_python="$PYTHON_VERSION"
     if [[ "$USE_SYSTEM_SITE_PACKAGES" == "1" ]]; then
         venv_args+=(--system-site-packages)
     elif [[ "$USE_SYSTEM_SITE_PACKAGES" == "auto" ]] && "$SYSTEM_PYTHON_BIN" -c "import torch" >/dev/null 2>&1; then
         venv_args+=(--system-site-packages)
-        echo "Reusing system torch via --system-site-packages"
+        venv_python="$SYSTEM_PYTHON_BIN"
+        echo "Reusing system torch via --system-site-packages and $SYSTEM_PYTHON_BIN"
+    else
+        "$UV_BIN" python install "$PYTHON_VERSION"
     fi
 
-    "$UV_BIN" venv --python "$PYTHON_VERSION" "${venv_args[@]}" "$VENV_DIR"
+    echo "Using Python ${venv_python}"
+    "$UV_BIN" venv --python "$venv_python" "${venv_args[@]}" "$VENV_DIR"
     "$UV_BIN" sync --frozen --python "$VENV_DIR/bin/python"
     ensure_torch "$VENV_DIR/bin/python"
 
