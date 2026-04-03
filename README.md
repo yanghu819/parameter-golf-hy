@@ -77,6 +77,32 @@ We'd love to see weird & creative ideas in the challenge, since you never know w
 
 ## Getting Started
 
+### Repo Workflow For `parameter-golf-hy`
+
+This fork keeps `openai/parameter-golf` as the upstream codebase, but standardizes reproducibility around `uv` and GitHub-first remote sync.
+
+Local or remote setup now uses three scripts:
+
+```bash
+bash setup.sh   # create .venv with uv and install deps
+bash down.sh    # download FineWeb cache + tokenizer
+bash run.sh     # launch torchrun with sensible defaults
+```
+
+For Runpod, the repository also includes a tracked [`runpod.template.sh`](runpod.template.sh) plus a gitignored local `runpod.sh` that holds your API key. The intended workflow is:
+
+```bash
+# local
+git add .
+git commit -m "..."
+git push origin main
+
+# remote pod
+git -C /workspace/parameter-golf-hy pull --ff-only origin main
+```
+
+That keeps the pod in sync without `rsync`, which also makes reruns easier to reproduce later.
+
 ### Training Your First Model (Mac with Apple Silicon)
 
 If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
@@ -122,47 +148,78 @@ Once you're happy with your local tests, or you want more compute, switch to a r
 
 You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.  
 
-#### Launching a 1xH100 Pod
+#### Launching a 1x4090 Pod On Runpod
 
 1. First, [create a Runpod account](https://console.runpod.io/deploy). You should also set up an SSH key in the Settings tab on the left so you can connect to your remote machine. If you're new to this, ask Codex to help you set it up.
 
 2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s (specifically the SXM variant), but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
 
-3. Let's start with a 1xH100 pod. Deploy using the official Parameter Golf template: [Launch Template](https://console.runpod.io/deploy?template=y5cejece4j&ref=nl2r56th). Enable SSH terminal access, leaving the other settings at their defaults. Deploy your pod and SSH into it once it's up. You should land in `/workspace/`.
+3. For this fork, the default cheap path is a single RTX 4090 pod. You can still use the official Parameter Golf template for H100 testing, but the automation in this repo defaults to a community-cloud 1x4090 PyTorch image. Create the pod with:
 
-On your remote machine, clone the repo onto local disk. All Python dependencies are already pre-installed in the image.
+```bash
+bash runpod.sh create
+```
+
+This defaults to:
+
+- `RUNPOD_GPU_TYPE="NVIDIA GeForce RTX 4090"`
+- `RUNPOD_IMAGE="runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04"`
+- SSH exposed on `22/tcp`
+- `/workspace` mounted as the persistent volume
+
+Once the pod is up, SSH into it or let the helper bootstrap the repo for you.
+
+On your remote machine, clone the repo onto local disk by pulling your GitHub fork, not the upstream OpenAI repo:
 
 ```bash
 cd /workspace
-git clone https://github.com/openai/parameter-golf.git
-cd parameter-golf
+git clone https://github.com/yanghu819/parameter-golf-hy.git
+cd parameter-golf-hy
 ```
+
+Or, from your laptop, run the whole bootstrap step remotely:
+
+```bash
+bash runpod.sh bootstrap POD_ID
+```
+
+That will clone or update the repo on the pod and run `bash setup.sh`.
 
 Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
 
 ```bash
-python3 data/cached_challenge_fineweb.py --variant sp1024
+bash down.sh
 ```
 
-This defaults to the full validation split plus 80 training shards (8B tokens). If you only want a smaller subset while iterating, pass `--train-shards N`, for example `--train-shards 1`.
+This defaults to the full validation split plus 80 training shards (8B tokens). If you only want a smaller subset while iterating, pass `TRAIN_SHARDS=N`, for example `TRAIN_SHARDS=1 bash down.sh`.
 
-Launch your first training run. Note that we're passing `nproc_per_node=1` because we're running on a single H100 GPU in this case.
+Launch your first training run. The wrapper infers the baseline data path and tokenizer path for `sp1024` automatically.
 
 ```bash
-RUN_ID=baseline_sp1024 \
-DATA_PATH=./data/datasets/fineweb10B_sp1024/ \
-TOKENIZER_PATH=./data/tokenizers/fineweb_1024_bpe.model \
-VOCAB_SIZE=1024 \
-torchrun --standalone --nproc_per_node=1 train_gpt.py
+RUN_ID=baseline_sp1024 NUM_GPUS=1 bash run.sh
 ```
 
 By default, `train_gpt.py` keeps its ~10 minute wallclock cap. If you want a longer run, override it explicitly, for example `MAX_WALLCLOCK_SECONDS=0`.
 
 By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
 
+The most useful pod helper commands are:
+
+```bash
+bash runpod.sh list
+bash runpod.sh bootstrap POD_ID
+bash runpod.sh sync POD_ID
+bash runpod.sh download POD_ID
+bash runpod.sh train POD_ID
+bash runpod.sh autostop POD_ID 2h
+bash runpod.sh stop POD_ID
+```
+
+The `autostop` helper schedules a delayed `runpodctl stop pod` inside the pod so you do not leave a GPU running after a long experiment.
+
 For dataset export, tokenizer export, and docs-cache rebuild instructions, see [data/README.md](data/README.md).
 
-Evaluation will be in the RunPod environment with all packages installed. `requirements.txt` is provided as a reference if you want to self-setup.
+Evaluation will still be in a RunPod environment with the standard packages available. `requirements.txt` is preserved as the upstream reference, while this fork uses `pyproject.toml` and `uv` for reproducible setup.
 
 ## FAQ
 
