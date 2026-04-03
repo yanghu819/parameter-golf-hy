@@ -99,6 +99,32 @@ def rms_norm(x: Tensor, normalized_shape: tuple[int, ...], eps: float | None = N
     dims = tuple(range(-len(normalized_shape), 0))
     return x * torch.rsqrt(x.square().mean(dim=dims, keepdim=True) + (1e-5 if eps is None else eps))
 
+def torch_version_tuple() -> tuple[int, int]:
+    version = torch.__version__.split("+", 1)[0]
+    major_str, minor_str, *_ = version.split(".")
+    return int(major_str), int(minor_str)
+
+def maybe_compile(obj, **kwargs):
+    compile_mode = os.environ.get("ENABLE_TORCH_COMPILE", "auto").lower()
+    if compile_mode in {"0", "false", "off", "no"}:
+        return obj
+    if not hasattr(torch, "compile"):
+        return obj
+    if compile_mode == "auto" and torch_version_tuple() < (2, 5):
+        return obj
+    return torch.compile(obj, **kwargs)
+
+def make_adam(param_groups, *, lr: float, betas: tuple[float, float], eps: float) -> torch.optim.Adam:
+    kwargs = dict(lr=lr, betas=betas, eps=eps)
+    fused_mode = os.environ.get("ENABLE_FUSED_ADAM", "auto").lower()
+    if fused_mode not in {"0", "false", "off", "no"}:
+        if fused_mode == "1" or fused_mode == "true" or fused_mode == "on" or torch_version_tuple() >= (2, 1):
+            try:
+                return torch.optim.Adam(param_groups, fused=True, **kwargs)
+            except (TypeError, RuntimeError):
+                pass
+    return torch.optim.Adam(param_groups, **kwargs)
+
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
@@ -756,7 +782,7 @@ def main() -> None:
 
     code = Path(__file__).read_text(encoding="utf-8")
     args = Hyperparameters()
-    zeropower_via_newtonschulz5 = torch.compile(zeropower_via_newtonschulz5)
+    zeropower_via_newtonschulz5 = maybe_compile(zeropower_via_newtonschulz5)
 
     # -----------------------------
     # DISTRIBUTED + CUDA SETUP
@@ -873,7 +899,7 @@ def main() -> None:
         if isinstance(module, CastedLinear):
             module.float()
     restore_low_dim_params_to_fp32(base_model)
-    compiled_model = torch.compile(base_model, dynamic=False, fullgraph=True)
+    compiled_model = maybe_compile(base_model, dynamic=False, fullgraph=True)
     model: nn.Module = DDP(compiled_model, device_ids=[local_rank], broadcast_buffers=False) if distributed else compiled_model
 
     # Optimizer split:
@@ -895,11 +921,11 @@ def main() -> None:
     if base_model.skip_weights.numel() > 0:
         scalar_params.append(base_model.skip_weights)
     token_lr = args.tied_embed_lr if args.tie_embeddings else args.embed_lr
-    optimizer_tok = torch.optim.Adam(
+    optimizer_tok = make_adam(
         [{"params": [base_model.tok_emb.weight], "lr": token_lr, "base_lr": token_lr}],
+        lr=token_lr,
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
-        fused=True,
     )
     optimizer_muon = Muon(
         matrix_params,
@@ -909,25 +935,29 @@ def main() -> None:
     )
     for group in optimizer_muon.param_groups:
         group["base_lr"] = args.matrix_lr
-    optimizer_scalar = torch.optim.Adam(
+    optimizer_scalar = make_adam(
         [{"params": scalar_params, "lr": args.scalar_lr, "base_lr": args.scalar_lr}],
+        lr=args.scalar_lr,
         betas=(args.beta1, args.beta2),
         eps=args.adam_eps,
-        fused=True,
     )
     optimizers: list[torch.optim.Optimizer] = [optimizer_tok, optimizer_muon, optimizer_scalar]
     if base_model.lm_head is not None:
-        optimizer_head = torch.optim.Adam(
+        optimizer_head = make_adam(
             [{"params": [base_model.lm_head.weight], "lr": args.head_lr, "base_lr": args.head_lr}],
+            lr=args.head_lr,
             betas=(args.beta1, args.beta2),
             eps=args.adam_eps,
-            fused=True,
         )
         optimizers.insert(1, optimizer_head)
 
     n_params = sum(p.numel() for p in base_model.parameters())
     log0(f"model_params:{n_params}")
     log0(f"world_size:{world_size} grad_accum_steps:{grad_accum_steps}")
+    log0(
+        f"compile_mode:{os.environ.get('ENABLE_TORCH_COMPILE', 'auto')} "
+        f"fused_adam_mode:{os.environ.get('ENABLE_FUSED_ADAM', 'auto')}"
+    )
     log0("sdp_backends:cudnn=False flash=True mem_efficient=False math=False")
     log0(f"attention_mode:gqa num_heads:{args.num_heads} num_kv_heads:{args.num_kv_heads}")
     log0(
