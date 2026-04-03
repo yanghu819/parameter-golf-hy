@@ -29,7 +29,6 @@ try:
 except ImportError:
     flash_attn_3_func = None
 
-_FA3_FALLBACK_WARNED = False
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -104,8 +103,6 @@ class Hyperparameters:
 
 
 def _flash_attn_or_fallback(q: Tensor, k: Tensor, v: Tensor, *, causal: bool, allow_fallback: bool) -> Tensor:
-    global _FA3_FALLBACK_WARNED
-
     if flash_attn_3_func is not None and torch.cuda.get_device_capability(q.device) >= (9, 0):
         return flash_attn_3_func(q, k, v, causal=causal)
 
@@ -114,10 +111,6 @@ def _flash_attn_or_fallback(q: Tensor, k: Tensor, v: Tensor, *, causal: bool, al
             "FlashAttention 3 requires Hopper and the flash_attn_3 wheel. "
             "Set ALLOW_FA3_FALLBACK=1 only for non-Hopper smoke tests."
         )
-
-    if not _FA3_FALLBACK_WARNED:
-        print("fa3_fallback: using scaled_dot_product_attention for smoke", flush=True)
-        _FA3_FALLBACK_WARNED = True
 
     q_t = q.permute(0, 2, 1, 3)
     k_t = k.permute(0, 2, 1, 3)
