@@ -168,6 +168,8 @@ If you already have a Runpod network volume, inspect it first and create the pod
 
 ```bash
 bash runpod.sh volumes
+bash runpod.sh stock "NVIDIA L4"
+bash runpod.sh stock "NVIDIA GeForce RTX 4090"
 RUNPOD_NETWORK_VOLUME_ID=... RUNPOD_DATA_CENTER_ID=US-IL-1 bash runpod.sh create
 ```
 
@@ -226,7 +228,9 @@ The most useful pod helper commands are:
 
 ```bash
 bash runpod.sh list
+bash runpod.sh stock "NVIDIA GeForce RTX 4090"
 bash runpod.sh volumes
+bash runpod.sh wait POD_ID
 bash runpod.sh bootstrap POD_ID COMMIT_SHA
 bash runpod.sh sync POD_ID COMMIT_SHA
 bash runpod.sh download POD_ID COMMIT_SHA

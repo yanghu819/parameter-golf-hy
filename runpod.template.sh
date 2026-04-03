@@ -55,6 +55,13 @@ api() {
         "$RUNPOD_API_BASE$path"
 }
 
+graphql() {
+    local query="$1"
+    curl -fsSL "https://api.runpod.io/graphql?api_key=$RUNPOD_API_KEY" \
+        -H "content-type: application/json" \
+        --data "$(jq -nc --arg query "$query" '{query: $query}')"
+}
+
 ports_json() {
     jq -nc --arg raw "$RUNPOD_PORTS" '$raw | split(",")'
 }
@@ -105,13 +112,30 @@ resolve_target_sha() {
     git -C "$LOCAL_ROOT" rev-parse HEAD
 }
 
+wait_for_ssh() {
+    local pod_id="$1"
+    local timeout_sec="${2:-300}"
+    local deadline=$(( $(date +%s) + timeout_sec ))
+    while (( $(date +%s) < deadline )); do
+        if ssh_run "$pod_id" "true" >/dev/null 2>&1; then
+            echo "ssh_ready $pod_id"
+            return
+        fi
+        sleep 5
+    done
+    echo "Timed out waiting for SSH on pod $pod_id" >&2
+    exit 1
+}
+
 usage() {
     cat <<'EOF'
 Usage:
   bash runpod.sh list
+  bash runpod.sh stock GPU_TYPE
   bash runpod.sh volumes
   bash runpod.sh get POD_ID
   bash runpod.sh create [pod_name]
+  bash runpod.sh wait POD_ID [timeout_sec]
   bash runpod.sh start POD_ID
   bash runpod.sh stop POD_ID
   bash runpod.sh terminate POD_ID
@@ -205,6 +229,10 @@ case "${1:-}" in
     list)
         api GET "/pods" | jq -r '.[] | [.id, .name, .desiredStatus, (.publicIp // "-"), (.portMappings["22"] // "-")] | @tsv'
         ;;
+    stock)
+        [[ $# -eq 2 ]] || { usage; exit 1; }
+        graphql "query { gpuTypes(input: { id: \"$2\" }) { id displayName lowestPrice(input: { gpuCount: $RUNPOD_GPU_COUNT, dataCenterId: \"$RUNPOD_DATA_CENTER_ID\", secureCloud: true, minDisk: $RUNPOD_CONTAINER_DISK_GB, minMemoryInGb: 8, minVcpuCount: 2, globalNetwork: false }) { uninterruptablePrice stockStatus maxUnreservedGpuCount availableGpuCounts } } }" | jq
+        ;;
     volumes)
         api GET "/networkvolumes" | jq -r '.[] | [.id, .name, .dataCenterId, .size] | @tsv'
         ;;
@@ -214,6 +242,10 @@ case "${1:-}" in
         ;;
     create)
         create_pod "${2:-}"
+        ;;
+    wait)
+        [[ $# -ge 2 && $# -le 3 ]] || { usage; exit 1; }
+        wait_for_ssh "$2" "${3:-300}"
         ;;
     start)
         [[ $# -eq 2 ]] || { usage; exit 1; }
