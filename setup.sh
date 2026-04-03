@@ -3,12 +3,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_NAME="${REPO_NAME:-parameter-golf-hy}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 SYSTEM_PYTHON_BIN="${SYSTEM_PYTHON_BIN:-python3}"
 USE_SYSTEM_SITE_PACKAGES="${USE_SYSTEM_SITE_PACKAGES:-auto}"
-UV_BIN="${UV_BIN:-uv}"
+LOCAL_BIN_DIR="${LOCAL_BIN_DIR:-$ROOT_DIR/.local/bin}"
+UV_BIN="${UV_BIN:-$LOCAL_BIN_DIR/uv}"
 export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$ROOT_DIR/.cache}"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$ROOT_DIR/.cache/uv}"
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$ROOT_DIR/.cache/uv/python}"
+export HF_HOME="${HF_HOME:-$ROOT_DIR/.cache/huggingface}"
+export HF_HUB_CACHE="${HF_HUB_CACHE:-$ROOT_DIR/.cache/huggingface/hub}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$ROOT_DIR/.cache/huggingface/datasets}"
+export TMPDIR="${TMPDIR:-$ROOT_DIR/.tmp}"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
     TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}"
@@ -21,10 +30,9 @@ ensure_uv() {
         return
     fi
 
-    echo "uv not found; installing to \$HOME/.local/bin"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$PATH"
-    UV_BIN="uv"
+    echo "uv not found; installing to $LOCAL_BIN_DIR"
+    mkdir -p "$LOCAL_BIN_DIR"
+    UV_INSTALL_DIR="$ROOT_DIR/.local" curl -LsSf https://astral.sh/uv/install.sh | sh
 }
 
 ensure_torch() {
@@ -38,6 +46,12 @@ ensure_torch() {
 }
 
 main() {
+    if [[ -d /workspace && "$ROOT_DIR" != "/workspace/$REPO_NAME" ]]; then
+        echo "Remote root must be /workspace/$REPO_NAME, got $ROOT_DIR" >&2
+        exit 1
+    fi
+
+    mkdir -p "$ROOT_DIR/.cache" "$ROOT_DIR/.tmp" "$LOCAL_BIN_DIR"
     ensure_uv
 
     cd "$ROOT_DIR"
