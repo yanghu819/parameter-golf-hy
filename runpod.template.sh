@@ -19,6 +19,7 @@ REPO_NAME="${REPO_NAME:-parameter-golf-hy}"
 REMOTE_ROOT="${REMOTE_ROOT:-/workspace/$REPO_NAME}"
 SSH_KEY_PATH="${SSH_KEY_PATH:-$HOME/.ssh/gh_yanghu819_ed25519}"
 SSH_PUBLIC_KEY_PATH="${SSH_PUBLIC_KEY_PATH:-$SSH_KEY_PATH.pub}"
+LOCAL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 need() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -95,6 +96,15 @@ ssh_run() {
         "$@"
 }
 
+resolve_target_sha() {
+    local explicit_sha="${1:-}"
+    if [[ -n "$explicit_sha" ]]; then
+        printf '%s\n' "$explicit_sha"
+        return
+    fi
+    git -C "$LOCAL_ROOT" rev-parse HEAD
+}
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -104,12 +114,12 @@ Usage:
   bash runpod.sh create [pod_name]
   bash runpod.sh start POD_ID
   bash runpod.sh stop POD_ID
-  bash runpod.sh delete POD_ID
+  bash runpod.sh terminate POD_ID
   bash runpod.sh ssh POD_ID
-  bash runpod.sh bootstrap POD_ID
-  bash runpod.sh sync POD_ID
-  bash runpod.sh download POD_ID
-  bash runpod.sh train POD_ID
+  bash runpod.sh bootstrap POD_ID [commit_sha]
+  bash runpod.sh sync POD_ID [commit_sha]
+  bash runpod.sh download POD_ID [commit_sha]
+  bash runpod.sh train POD_ID [commit_sha]
   bash runpod.sh autostop POD_ID 2h
 
 Environment overrides:
@@ -213,7 +223,7 @@ case "${1:-}" in
         [[ $# -eq 2 ]] || { usage; exit 1; }
         api POST "/pods/$2/stop" | jq
         ;;
-    delete)
+    terminate|delete)
         [[ $# -eq 2 ]] || { usage; exit 1; }
         api DELETE "/pods/$2" >/dev/null
         echo "deleted $2"
@@ -234,39 +244,46 @@ case "${1:-}" in
         ssh_run "$pod_id" "$@"
         ;;
     bootstrap)
-        [[ $# -eq 2 ]] || { usage; exit 1; }
+        [[ $# -ge 2 && $# -le 3 ]] || { usage; exit 1; }
+        target_sha="$(resolve_target_sha "${3:-}")"
         ssh_run "$2" "bash -lc '
             set -euo pipefail
             if [[ ! -d \"$REMOTE_ROOT/.git\" ]]; then
                 git clone https://github.com/$REPO_OWNER/$REPO_NAME.git \"$REMOTE_ROOT\"
             fi
             git -C \"$REMOTE_ROOT\" fetch origin main
-            git -C \"$REMOTE_ROOT\" checkout main
-            git -C \"$REMOTE_ROOT\" pull --ff-only origin main
+            git -C \"$REMOTE_ROOT\" checkout --detach \"$target_sha\"
             cd \"$REMOTE_ROOT\"
             bash setup.sh
         '"
         ;;
     sync)
-        [[ $# -eq 2 ]] || { usage; exit 1; }
+        [[ $# -ge 2 && $# -le 3 ]] || { usage; exit 1; }
+        target_sha="$(resolve_target_sha "${3:-}")"
         ssh_run "$2" "bash -lc '
             set -euo pipefail
             git -C \"$REMOTE_ROOT\" fetch origin main
-            git -C \"$REMOTE_ROOT\" pull --ff-only origin main
+            git -C \"$REMOTE_ROOT\" checkout --detach \"$target_sha\"
         '"
         ;;
     download)
-        [[ $# -eq 2 ]] || { usage; exit 1; }
+        [[ $# -ge 2 && $# -le 3 ]] || { usage; exit 1; }
+        target_sha="$(resolve_target_sha "${3:-}")"
         ssh_run "$2" "bash -lc '
             set -euo pipefail
+            git -C \"$REMOTE_ROOT\" fetch origin main
+            git -C \"$REMOTE_ROOT\" checkout --detach \"$target_sha\"
             cd \"$REMOTE_ROOT\"
             bash down.sh
         '"
         ;;
     train)
-        [[ $# -eq 2 ]] || { usage; exit 1; }
+        [[ $# -ge 2 && $# -le 3 ]] || { usage; exit 1; }
+        target_sha="$(resolve_target_sha "${3:-}")"
         ssh_run "$2" "bash -lc '
             set -euo pipefail
+            git -C \"$REMOTE_ROOT\" fetch origin main
+            git -C \"$REMOTE_ROOT\" checkout --detach \"$target_sha\"
             cd \"$REMOTE_ROOT\"
             bash run.sh
         '"

@@ -156,7 +156,9 @@ You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make se
 
 2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s (specifically the SXM variant), but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
 
-3. For this fork, the default cheap path is a single RTX 4090 pod. You can still use the official Parameter Golf template for H100 testing, but the automation in this repo defaults to a 1x4090 PyTorch image. Create the pod with:
+3. For this fork, the default formal-run path is a single RTX 4090 pod. Do not use 4090/H100 just to install dependencies or warm caches. Run `setup.sh`, `down.sh`, and any smoke checks locally or on a cheaper card first, then start the 4090 only for the real `bash run.sh`.
+
+Create a pod with:
 
 ```bash
 bash runpod.sh create
@@ -167,6 +169,14 @@ If you already have a Runpod network volume, inspect it first and create the pod
 ```bash
 bash runpod.sh volumes
 RUNPOD_NETWORK_VOLUME_ID=... RUNPOD_DATA_CENTER_ID=US-IL-1 bash runpod.sh create
+```
+
+Sync and run by commit SHA, not by a floating branch tip:
+
+```bash
+COMMIT_SHA="$(git rev-parse HEAD)"
+bash runpod.sh sync POD_ID "$COMMIT_SHA"
+bash runpod.sh train POD_ID "$COMMIT_SHA"
 ```
 
 This defaults to:
@@ -217,15 +227,15 @@ The most useful pod helper commands are:
 ```bash
 bash runpod.sh list
 bash runpod.sh volumes
-bash runpod.sh bootstrap POD_ID
-bash runpod.sh sync POD_ID
-bash runpod.sh download POD_ID
-bash runpod.sh train POD_ID
+bash runpod.sh bootstrap POD_ID COMMIT_SHA
+bash runpod.sh sync POD_ID COMMIT_SHA
+bash runpod.sh download POD_ID COMMIT_SHA
+bash runpod.sh train POD_ID COMMIT_SHA
 bash runpod.sh autostop POD_ID 2h
-bash runpod.sh stop POD_ID
+bash runpod.sh terminate POD_ID
 ```
 
-The `autostop` helper schedules a delayed `runpodctl stop pod` inside the pod so you do not leave a GPU running after a long experiment.
+The `autostop` helper schedules a delayed `runpodctl stop pod` inside the pod so you do not leave a GPU running after a long experiment. For non-running or finished work, prefer `terminate` immediately so the pod does not hang around burning money.
 
 For dataset export, tokenizer export, and docs-cache rebuild instructions, see [data/README.md](data/README.md).
 
