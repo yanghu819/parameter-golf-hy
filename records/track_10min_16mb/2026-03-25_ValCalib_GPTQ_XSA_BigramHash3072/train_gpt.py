@@ -24,7 +24,12 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.nn.parallel import DistributedDataParallel as DDP
-from flash_attn_interface import flash_attn_func as flash_attn_3_func
+try:
+    from flash_attn_interface import flash_attn_func as flash_attn_3_func
+except ImportError:
+    flash_attn_3_func = None
+
+_FA3_FALLBACK_WARNED = False
 class Hyperparameters:
     data_path = os.environ.get("DATA_PATH", "./data/datasets/fineweb10B_sp1024")
     train_files = os.path.join(data_path, "fineweb_train_*.bin")
@@ -95,6 +100,34 @@ class Hyperparameters:
     gptq_calib_batches = int(os.environ.get("GPTQ_CALIB_BATCHES", 256))
     gptq_block_size = int(os.environ.get("GPTQ_BLOCK_SIZE", 128))
     smoke_test = bool(int(os.environ.get("SMOKE_TEST", "0")))
+    allow_fa3_fallback = bool(int(os.environ.get("ALLOW_FA3_FALLBACK", "0")))
+
+
+def _flash_attn_or_fallback(q: Tensor, k: Tensor, v: Tensor, *, causal: bool, allow_fallback: bool) -> Tensor:
+    global _FA3_FALLBACK_WARNED
+
+    if flash_attn_3_func is not None and torch.cuda.get_device_capability(q.device) >= (9, 0):
+        return flash_attn_3_func(q, k, v, causal=causal)
+
+    if not allow_fallback:
+        raise RuntimeError(
+            "FlashAttention 3 requires Hopper and the flash_attn_3 wheel. "
+            "Set ALLOW_FA3_FALLBACK=1 only for non-Hopper smoke tests."
+        )
+
+    if not _FA3_FALLBACK_WARNED:
+        print("fa3_fallback: using scaled_dot_product_attention for smoke", flush=True)
+        _FA3_FALLBACK_WARNED = True
+
+    q_t = q.permute(0, 2, 1, 3)
+    k_t = k.permute(0, 2, 1, 3)
+    v_t = v.permute(0, 2, 1, 3)
+    if q_t.size(1) != k_t.size(1):
+        group = q_t.size(1) // k_t.size(1)
+        k_t = k_t.repeat_interleave(group, dim=1)
+        v_t = v_t.repeat_interleave(group, dim=1)
+    y_t = F.scaled_dot_product_attention(q_t, k_t, v_t, is_causal=causal)
+    return y_t.permute(0, 2, 1, 3)
 
 # --- Batched Newton-Schulz orthogonalization ---
 
@@ -659,7 +692,7 @@ class CausalSelfAttention(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        y = _flash_attn_or_fallback(q, k, v, causal=True, allow_fallback=Hyperparameters.allow_fa3_fallback)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         if self.gated_attention:
@@ -1350,7 +1383,7 @@ class _HessianAttn(nn.Module):
         q = apply_rotary_emb(q, cos, sin, self.rope_dims)
         k = apply_rotary_emb(k, cos, sin, self.rope_dims)
         q = q * self.q_gain.to(dtype=q.dtype)[None, None, :, None]
-        y = flash_attn_3_func(q, k, v, causal=True)
+        y = _flash_attn_or_fallback(q, k, v, causal=True, allow_fallback=Hyperparameters.allow_fa3_fallback)
         if self.use_xsa:
             y = self._xsa_efficient(y, v)
         return self.proj(y.reshape(bsz, seqlen, dim))
