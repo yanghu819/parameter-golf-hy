@@ -55,6 +55,7 @@ main() {
     cd "$REPO_ROOT"
     "$UV_BIN" venv --clear --python "$PYTHON_BIN" "$VENV_DIR"
     "$UV_BIN" pip install --python "$VENV_DIR/bin/python" \
+        numpy \
         -r "$SCRIPT_DIR/requirements.txt" \
         huggingface_hub
     "$UV_BIN" pip install --python "$VENV_DIR/bin/python" --index-url "$TORCH_INDEX_URL" "$TORCH_SPEC"
