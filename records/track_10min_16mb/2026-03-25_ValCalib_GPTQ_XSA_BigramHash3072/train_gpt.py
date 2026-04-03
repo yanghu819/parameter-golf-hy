@@ -1965,6 +1965,11 @@ def main() -> None:
         current_state = base_model.state_dict()
         avg_state = {name: t.to(dtype=current_state[name].dtype) for name, t in ema_state.items()}
         base_model.load_state_dict(avg_state, strict=True)
+    if args.smoke_test:
+        log0("smoke_test: skipping post_ema eval, export, GPTQ, artifact packing, and final roundtrip eval")
+        if distributed:
+            dist.destroy_process_group()
+        return
     torch.cuda.synchronize()
     t_diag = time.perf_counter()
     diag_val_loss, diag_val_bpb = eval_val(
@@ -1976,11 +1981,6 @@ def main() -> None:
         f"DIAGNOSTIC post_ema val_loss:{diag_val_loss:.4f} val_bpb:{diag_val_bpb:.4f} "
         f"eval_time:{1000.0 * (time.perf_counter() - t_diag):.0f}ms"
     )
-    if args.smoke_test:
-        log0("smoke_test: skipping export, GPTQ, artifact packing, and final roundtrip eval")
-        if distributed:
-            dist.destroy_process_group()
-        return
     full_state_dict = base_model.state_dict()
     export_sd = {k: v for k, v in full_state_dict.items() if "mtp_heads" not in k}
     excluded_mtp = sum(int(t.numel()) for k, t in full_state_dict.items() if "mtp_heads" in k)
