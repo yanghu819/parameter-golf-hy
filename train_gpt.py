@@ -765,7 +765,13 @@ def main() -> None:
     # Fast math knobs
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+    try:
+        from torch.backends.cuda import enable_cudnn_sdp, enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+    except ImportError:
+        from torch.backends.cuda import enable_flash_sdp, enable_math_sdp, enable_mem_efficient_sdp
+
+        def enable_cudnn_sdp(_: bool) -> None:
+            return None
 
     enable_cudnn_sdp(False)
     enable_flash_sdp(True)
