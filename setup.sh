@@ -26,13 +26,27 @@ else
 fi
 
 ensure_uv() {
-    if command -v "$UV_BIN" >/dev/null 2>&1; then
+    if [[ -x "$UV_BIN" ]]; then
+        return
+    fi
+    if command -v uv >/dev/null 2>&1; then
+        UV_BIN="$(command -v uv)"
         return
     fi
 
     echo "uv not found; installing to $LOCAL_BIN_DIR"
     mkdir -p "$LOCAL_BIN_DIR"
     UV_INSTALL_DIR="$ROOT_DIR/.local" curl -LsSf https://astral.sh/uv/install.sh | sh
+    if [[ -x "$LOCAL_BIN_DIR/uv" ]]; then
+        UV_BIN="$LOCAL_BIN_DIR/uv"
+        return
+    fi
+    if command -v uv >/dev/null 2>&1; then
+        UV_BIN="$(command -v uv)"
+        return
+    fi
+    echo "uv install succeeded but uv binary was not found" >&2
+    exit 1
 }
 
 ensure_torch() {
