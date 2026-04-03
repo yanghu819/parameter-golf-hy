@@ -5,8 +5,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
-TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
+SYSTEM_PYTHON_BIN="${SYSTEM_PYTHON_BIN:-python3}"
+USE_SYSTEM_SITE_PACKAGES="${USE_SYSTEM_SITE_PACKAGES:-auto}"
 UV_BIN="${UV_BIN:-uv}"
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}"
+else
+    TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cu118}"
+fi
 
 ensure_uv() {
     if command -v "$UV_BIN" >/dev/null 2>&1; then
@@ -35,7 +42,15 @@ main() {
     cd "$ROOT_DIR"
     echo "Using Python ${PYTHON_VERSION}"
     "$UV_BIN" python install "$PYTHON_VERSION"
-    "$UV_BIN" venv --python "$PYTHON_VERSION" "$VENV_DIR"
+    local venv_args=()
+    if [[ "$USE_SYSTEM_SITE_PACKAGES" == "1" ]]; then
+        venv_args+=(--system-site-packages)
+    elif [[ "$USE_SYSTEM_SITE_PACKAGES" == "auto" ]] && "$SYSTEM_PYTHON_BIN" -c "import torch" >/dev/null 2>&1; then
+        venv_args+=(--system-site-packages)
+        echo "Reusing system torch via --system-site-packages"
+    fi
+
+    "$UV_BIN" venv --python "$PYTHON_VERSION" "${venv_args[@]}" "$VENV_DIR"
     "$UV_BIN" sync --frozen --python "$VENV_DIR/bin/python"
     ensure_torch "$VENV_DIR/bin/python"
 

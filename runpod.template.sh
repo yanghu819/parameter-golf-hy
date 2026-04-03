@@ -7,10 +7,9 @@ RUNPOD_API_BASE="${RUNPOD_API_BASE:-https://rest.runpod.io/v1}"
 RUNPOD_NAME="${RUNPOD_NAME:-parameter-golf-hy-4090}"
 RUNPOD_GPU_TYPE="${RUNPOD_GPU_TYPE:-NVIDIA GeForce RTX 4090}"
 RUNPOD_GPU_COUNT="${RUNPOD_GPU_COUNT:-1}"
-RUNPOD_IMAGE="${RUNPOD_IMAGE:-runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04}"
-RUNPOD_CLOUD_TYPE="${RUNPOD_CLOUD_TYPE:-COMMUNITY}"
-RUNPOD_CONTAINER_DISK_GB="${RUNPOD_CONTAINER_DISK_GB:-80}"
-RUNPOD_VOLUME_GB="${RUNPOD_VOLUME_GB:-200}"
+RUNPOD_IMAGE="${RUNPOD_IMAGE:-runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04}"
+RUNPOD_CONTAINER_DISK_GB="${RUNPOD_CONTAINER_DISK_GB:-50}"
+RUNPOD_VOLUME_GB="${RUNPOD_VOLUME_GB:-120}"
 RUNPOD_PORTS="${RUNPOD_PORTS:-22/tcp,8888/http}"
 RUNPOD_VOLUME_MOUNT_PATH="${RUNPOD_VOLUME_MOUNT_PATH:-/workspace}"
 REPO_OWNER="${REPO_OWNER:-yanghu819}"
@@ -112,8 +111,7 @@ Usage:
 
 Environment overrides:
   RUNPOD_GPU_TYPE="NVIDIA GeForce RTX 4090"
-  RUNPOD_IMAGE="runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04"
-  RUNPOD_CLOUD_TYPE=COMMUNITY
+  RUNPOD_IMAGE="runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04"
   REPO_OWNER=yanghu819
   REPO_NAME=parameter-golf-hy
 EOF
@@ -130,38 +128,24 @@ create_pod() {
         jq -nc \
             --arg name "$pod_name" \
             --arg image "$RUNPOD_IMAGE" \
-            --arg cloud "$RUNPOD_CLOUD_TYPE" \
             --arg gpuType "$RUNPOD_GPU_TYPE" \
             --arg mountPath "$RUNPOD_VOLUME_MOUNT_PATH" \
             --arg publicKey "$public_key" \
-            --arg repoOwner "$REPO_OWNER" \
-            --arg repoName "$REPO_NAME" \
             --argjson gpuCount "$RUNPOD_GPU_COUNT" \
             --argjson containerDisk "$RUNPOD_CONTAINER_DISK_GB" \
             --argjson volumeDisk "$RUNPOD_VOLUME_GB" \
             --argjson ports "$(ports_json)" \
             '{
                 name: $name,
-                computeType: "GPU",
                 imageName: $image,
-                cloudType: $cloud,
                 gpuCount: $gpuCount,
                 gpuTypeIds: [$gpuType],
-                gpuTypePriority: "availability",
                 containerDiskInGb: $containerDisk,
                 volumeInGb: $volumeDisk,
                 volumeMountPath: $mountPath,
                 ports: $ports,
-                supportPublicIp: true,
-                dockerStartCmd: [
-                    "bash",
-                    "-lc",
-                    "mkdir -p /var/run/sshd; if [[ -x /usr/sbin/sshd ]]; then /usr/sbin/sshd; fi; sleep infinity"
-                ],
                 env: {
-                    PUBLIC_KEY: $publicKey,
-                    REPO_OWNER: $repoOwner,
-                    REPO_NAME: $repoName
+                    PUBLIC_KEY: $publicKey
                 }
             }'
     )"
