@@ -12,6 +12,8 @@ RUNPOD_CONTAINER_DISK_GB="${RUNPOD_CONTAINER_DISK_GB:-50}"
 RUNPOD_VOLUME_GB="${RUNPOD_VOLUME_GB:-120}"
 RUNPOD_PORTS="${RUNPOD_PORTS:-22/tcp,8888/http}"
 RUNPOD_VOLUME_MOUNT_PATH="${RUNPOD_VOLUME_MOUNT_PATH:-/workspace}"
+RUNPOD_NETWORK_VOLUME_ID="${RUNPOD_NETWORK_VOLUME_ID:-}"
+RUNPOD_DATA_CENTER_ID="${RUNPOD_DATA_CENTER_ID:-}"
 REPO_OWNER="${REPO_OWNER:-yanghu819}"
 REPO_NAME="${REPO_NAME:-parameter-golf-hy}"
 REMOTE_ROOT="${REMOTE_ROOT:-/workspace/$REPO_NAME}"
@@ -97,6 +99,7 @@ usage() {
     cat <<'EOF'
 Usage:
   bash runpod.sh list
+  bash runpod.sh volumes
   bash runpod.sh get POD_ID
   bash runpod.sh create [pod_name]
   bash runpod.sh start POD_ID
@@ -112,6 +115,8 @@ Usage:
 Environment overrides:
   RUNPOD_GPU_TYPE="NVIDIA GeForce RTX 4090"
   RUNPOD_IMAGE="runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04"
+  RUNPOD_NETWORK_VOLUME_ID=...
+  RUNPOD_DATA_CENTER_ID=US-IL-1
   REPO_OWNER=yanghu819
   REPO_NAME=parameter-golf-hy
 EOF
@@ -124,37 +129,74 @@ create_pod() {
     if [[ -f "$SSH_PUBLIC_KEY_PATH" ]]; then
         public_key="$(tr -d '\n' < "$SSH_PUBLIC_KEY_PATH")"
     fi
-    payload="$(
-        jq -nc \
-            --arg name "$pod_name" \
-            --arg image "$RUNPOD_IMAGE" \
-            --arg gpuType "$RUNPOD_GPU_TYPE" \
-            --arg mountPath "$RUNPOD_VOLUME_MOUNT_PATH" \
-            --arg publicKey "$public_key" \
-            --argjson gpuCount "$RUNPOD_GPU_COUNT" \
-            --argjson containerDisk "$RUNPOD_CONTAINER_DISK_GB" \
-            --argjson volumeDisk "$RUNPOD_VOLUME_GB" \
-            --argjson ports "$(ports_json)" \
-            '{
-                name: $name,
-                imageName: $image,
-                gpuCount: $gpuCount,
-                gpuTypeIds: [$gpuType],
-                containerDiskInGb: $containerDisk,
-                volumeInGb: $volumeDisk,
-                volumeMountPath: $mountPath,
-                ports: $ports,
-                env: {
-                    PUBLIC_KEY: $publicKey
-                }
-            }'
-    )"
+    if [[ -n "$RUNPOD_NETWORK_VOLUME_ID" ]]; then
+        if [[ -z "$RUNPOD_DATA_CENTER_ID" ]]; then
+            echo "RUNPOD_DATA_CENTER_ID is required when RUNPOD_NETWORK_VOLUME_ID is set" >&2
+            exit 1
+        fi
+        payload="$(
+            jq -nc \
+                --arg name "$pod_name" \
+                --arg image "$RUNPOD_IMAGE" \
+                --arg gpuType "$RUNPOD_GPU_TYPE" \
+                --arg mountPath "$RUNPOD_VOLUME_MOUNT_PATH" \
+                --arg publicKey "$public_key" \
+                --arg networkVolumeId "$RUNPOD_NETWORK_VOLUME_ID" \
+                --arg dataCenterId "$RUNPOD_DATA_CENTER_ID" \
+                --argjson gpuCount "$RUNPOD_GPU_COUNT" \
+                --argjson containerDisk "$RUNPOD_CONTAINER_DISK_GB" \
+                --argjson ports "$(ports_json)" \
+                '{
+                    name: $name,
+                    imageName: $image,
+                    gpuCount: $gpuCount,
+                    gpuTypeIds: [$gpuType],
+                    containerDiskInGb: $containerDisk,
+                    volumeMountPath: $mountPath,
+                    networkVolumeId: $networkVolumeId,
+                    dataCenterIds: [$dataCenterId],
+                    ports: $ports,
+                    env: {
+                        PUBLIC_KEY: $publicKey
+                    }
+                }'
+        )"
+    else
+        payload="$(
+            jq -nc \
+                --arg name "$pod_name" \
+                --arg image "$RUNPOD_IMAGE" \
+                --arg gpuType "$RUNPOD_GPU_TYPE" \
+                --arg mountPath "$RUNPOD_VOLUME_MOUNT_PATH" \
+                --arg publicKey "$public_key" \
+                --argjson gpuCount "$RUNPOD_GPU_COUNT" \
+                --argjson containerDisk "$RUNPOD_CONTAINER_DISK_GB" \
+                --argjson volumeDisk "$RUNPOD_VOLUME_GB" \
+                --argjson ports "$(ports_json)" \
+                '{
+                    name: $name,
+                    imageName: $image,
+                    gpuCount: $gpuCount,
+                    gpuTypeIds: [$gpuType],
+                    containerDiskInGb: $containerDisk,
+                    volumeInGb: $volumeDisk,
+                    volumeMountPath: $mountPath,
+                    ports: $ports,
+                    env: {
+                        PUBLIC_KEY: $publicKey
+                    }
+                }'
+        )"
+    fi
     api POST "/pods" "$payload" | jq -r '{id, name, desiredStatus, publicIp, portMappings}'
 }
 
 case "${1:-}" in
     list)
         api GET "/pods" | jq -r '.[] | [.id, .name, .desiredStatus, (.publicIp // "-"), (.portMappings["22"] // "-")] | @tsv'
+        ;;
+    volumes)
+        api GET "/networkvolumes" | jq -r '.[] | [.id, .name, .dataCenterId, .size] | @tsv'
         ;;
     get)
         [[ $# -eq 2 ]] || { usage; exit 1; }

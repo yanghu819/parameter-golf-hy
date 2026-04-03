@@ -103,6 +103,8 @@ git -C /workspace/parameter-golf-hy pull --ff-only origin main
 
 That keeps the pod in sync without `rsync`, which also makes reruns easier to reproduce later.
 
+If you already have a Runpod network volume, use it. This fork assumes the repo checkout and downloaded datasets should live under the mounted `/workspace` path so pods can be stopped or deleted without losing state.
+
 ### Training Your First Model (Mac with Apple Silicon)
 
 If you have an Apple laptop or desktop with Apple Silicon, we've set up a simple MLX training script to help you start iterating locally.
@@ -154,18 +156,25 @@ You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make se
 
 2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s (specifically the SXM variant), but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
 
-3. For this fork, the default cheap path is a single RTX 4090 pod. You can still use the official Parameter Golf template for H100 testing, but the automation in this repo defaults to a community-cloud 1x4090 PyTorch image. Create the pod with:
+3. For this fork, the default cheap path is a single RTX 4090 pod. You can still use the official Parameter Golf template for H100 testing, but the automation in this repo defaults to a 1x4090 PyTorch image. Create the pod with:
 
 ```bash
 bash runpod.sh create
 ```
 
+If you already have a Runpod network volume, inspect it first and create the pod in the same datacenter:
+
+```bash
+bash runpod.sh volumes
+RUNPOD_NETWORK_VOLUME_ID=... RUNPOD_DATA_CENTER_ID=US-IL-1 bash runpod.sh create
+```
+
 This defaults to:
 
 - `RUNPOD_GPU_TYPE="NVIDIA GeForce RTX 4090"`
-- `RUNPOD_IMAGE="runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04"`
+- `RUNPOD_IMAGE="runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04"`
 - SSH exposed on `22/tcp`
-- `/workspace` mounted as the persistent volume
+- `/workspace` mounted as the attached volume path
 
 Once the pod is up, SSH into it or let the helper bootstrap the repo for you.
 
@@ -207,6 +216,7 @@ The most useful pod helper commands are:
 
 ```bash
 bash runpod.sh list
+bash runpod.sh volumes
 bash runpod.sh bootstrap POD_ID
 bash runpod.sh sync POD_ID
 bash runpod.sh download POD_ID
