@@ -230,6 +230,8 @@ For a very cheap smoke check of the training path only, skip the final full vali
 SKIP_FINAL_VAL=1 WARMUP_STEPS=0 ITERATIONS=2 TRAIN_BATCH_TOKENS=8192 NUM_GPUS=1 bash run.sh
 ```
 
+That smoke path exits after the short train loop and does not run the final serialization or roundtrip evaluation.
+
 The most useful pod helper commands are:
 
 ```bash

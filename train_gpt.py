@@ -1124,6 +1124,11 @@ def main() -> None:
         f"reserved: {torch.cuda.max_memory_reserved() // 1024 // 1024} MiB"
     )
 
+    if args.skip_final_val:
+        if distributed:
+            dist.destroy_process_group()
+        return
+
     # -----------------------------
     # SERIALIZATION + ROUNDTRIP VALIDATION
     # -----------------------------
