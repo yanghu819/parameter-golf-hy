@@ -224,6 +224,12 @@ By default, `train_gpt.py` keeps its ~10 minute wallclock cap. If you want a lon
 
 By default, this command prints `train_loss` step logs during training and prints `val_loss`, `val_bpb`, and compressed model size in the final `final_int8_zlib_roundtrip` lines at the end. If you want periodic validation logs during the run, set `VAL_LOSS_EVERY`, for example `VAL_LOSS_EVERY=200`. For the baseline config, the final `val_bpb` should land around ~1.2 with a compressed model size under 16MB.
 
+For a very cheap smoke check of the training path only, skip the final full validation:
+
+```bash
+SKIP_FINAL_VAL=1 WARMUP_STEPS=0 ITERATIONS=2 TRAIN_BATCH_TOKENS=8192 NUM_GPUS=1 bash run.sh
+```
+
 The most useful pod helper commands are:
 
 ```bash
