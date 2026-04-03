@@ -41,6 +41,11 @@ ensure_uv() {
         UV_BIN="$LOCAL_BIN_DIR/uv"
         return
     fi
+    if [[ -x "$HOME/.local/bin/uv" ]]; then
+        cp "$HOME/.local/bin/uv" "$LOCAL_BIN_DIR/uv"
+        UV_BIN="$LOCAL_BIN_DIR/uv"
+        return
+    fi
     if command -v uv >/dev/null 2>&1; then
         UV_BIN="$(command -v uv)"
         return
