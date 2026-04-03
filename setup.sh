@@ -8,6 +8,7 @@ VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 SYSTEM_PYTHON_BIN="${SYSTEM_PYTHON_BIN:-python3}"
 USE_SYSTEM_SITE_PACKAGES="${USE_SYSTEM_SITE_PACKAGES:-auto}"
 UV_BIN="${UV_BIN:-uv}"
+export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
     TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}"
