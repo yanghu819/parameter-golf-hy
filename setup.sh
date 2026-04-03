@@ -54,7 +54,7 @@ main() {
     fi
 
     echo "Using Python ${venv_python}"
-    "$UV_BIN" venv --python "$venv_python" "${venv_args[@]}" "$VENV_DIR"
+    "$UV_BIN" venv --clear --python "$venv_python" "${venv_args[@]}" "$VENV_DIR"
     "$UV_BIN" sync --frozen --python "$VENV_DIR/bin/python"
     ensure_torch "$VENV_DIR/bin/python"
 
