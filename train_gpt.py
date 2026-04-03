@@ -93,6 +93,12 @@ class Hyperparameters:
 # As borrowed from modded-nanogpt
 # Background on Muon: https://kellerjordan.github.io/posts/muon/
 
+def rms_norm(x: Tensor, normalized_shape: tuple[int, ...], eps: float | None = None) -> Tensor:
+    if hasattr(F, "rms_norm"):
+        return F.rms_norm(x, normalized_shape, eps=eps)
+    dims = tuple(range(-len(normalized_shape), 0))
+    return x * torch.rsqrt(x.square().mean(dim=dims, keepdim=True) + (1e-5 if eps is None else eps))
+
 def zeropower_via_newtonschulz5(G: Tensor, steps: int = 10, eps: float = 1e-7) -> Tensor:
     # Orthogonalize a 2D update matrix with a fast Newton-Schulz iteration.
     # Muon uses this to normalize matrix-shaped gradients before applying them.
@@ -507,7 +513,7 @@ class RMSNorm(nn.Module):
         self.eps = eps
 
     def forward(self, x: Tensor) -> Tensor:
-        return F.rms_norm(x, (x.size(-1),), eps=self.eps)
+        return rms_norm(x, (x.size(-1),), eps=self.eps)
 
 
 class CastedLinear(nn.Linear):
@@ -589,8 +595,8 @@ class CausalSelfAttention(nn.Module):
         q = self.c_q(x).reshape(bsz, seqlen, self.num_heads, self.head_dim).transpose(1, 2)
         k = self.c_k(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
         v = self.c_v(x).reshape(bsz, seqlen, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        q = F.rms_norm(q, (q.size(-1),))
-        k = F.rms_norm(k, (k.size(-1),))
+        q = rms_norm(q, (q.size(-1),))
+        k = rms_norm(k, (k.size(-1),))
         cos, sin = self.rotary(seqlen, x.device, q.dtype)
         q = apply_rotary_emb(q, cos, sin)
         k = apply_rotary_emb(k, cos, sin)
@@ -703,7 +709,7 @@ class GPT(nn.Module):
 
     def forward(self, input_ids: Tensor, target_ids: Tensor) -> Tensor:
         x = self.tok_emb(input_ids)
-        x = F.rms_norm(x, (x.size(-1),))
+        x = rms_norm(x, (x.size(-1),))
         x0 = x
         skips: list[Tensor] = []
 
