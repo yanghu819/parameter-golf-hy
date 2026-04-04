@@ -7,6 +7,7 @@ REPO_NAME="${REPO_NAME:-parameter-golf-hy}"
 PYTHON_BIN="${PYTHON_BIN:-$ROOT_DIR/.venv/bin/python}"
 VARIANT="${VARIANT:-sp1024}"
 TRAIN_SHARDS="${TRAIN_SHARDS:-80}"
+DOWNLOAD_WORKERS="${DOWNLOAD_WORKERS:-8}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$ROOT_DIR/.cache}"
 export HF_HOME="${HF_HOME:-$ROOT_DIR/.cache/huggingface}"
 export HF_HUB_CACHE="${HF_HUB_CACHE:-$ROOT_DIR/.cache/huggingface/hub}"
@@ -26,7 +27,10 @@ fi
 
 cd "$ROOT_DIR"
 mkdir -p "$ROOT_DIR/.cache" "$ROOT_DIR/.tmp"
-"$PYTHON_BIN" data/cached_challenge_fineweb.py --variant "$VARIANT" --train-shards "$TRAIN_SHARDS"
+"$PYTHON_BIN" data/cached_challenge_fineweb.py \
+    --variant "$VARIANT" \
+    --train-shards "$TRAIN_SHARDS" \
+    --workers "$DOWNLOAD_WORKERS"
 
 "$PYTHON_BIN" - <<PY
 from pathlib import Path

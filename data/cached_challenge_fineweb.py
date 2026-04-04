@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from huggingface_hub import hf_hub_download
@@ -114,6 +115,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also download docs_selected.jsonl and its sidecar for tokenizer retraining or dataset re-export.",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=max(1, min(8, os.cpu_count() or 4)),
+        help="Number of concurrent artifact downloads. Defaults to min(8, cpu_count).",
+    )
     return parser
 
 
@@ -140,17 +147,24 @@ def main() -> None:
         raise ValueError(f"tokenizer {tokenizer_name} not found in {REMOTE_ROOT_PREFIX}/manifest.json")
 
     if args.with_docs:
-        get(f"{REMOTE_ROOT_PREFIX}/docs_selected.jsonl")
-        get(f"{REMOTE_ROOT_PREFIX}/docs_selected.source_manifest.json")
+        download_paths = [
+            f"{REMOTE_ROOT_PREFIX}/docs_selected.jsonl",
+            f"{REMOTE_ROOT_PREFIX}/docs_selected.source_manifest.json",
+        ]
+    else:
+        download_paths = []
 
     dataset_prefix = f"{REMOTE_ROOT_PREFIX}/datasets/{dataset_dir}"
     for i in range(val_shards):
-        get(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
+        download_paths.append(f"{dataset_prefix}/fineweb_val_{i:06d}.bin")
     for i in range(train_shards):
-        get(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
+        download_paths.append(f"{dataset_prefix}/fineweb_train_{i:06d}.bin")
 
     for artifact_path in artifact_paths_for_tokenizer(tokenizer_entry):
-        get(f"{REMOTE_ROOT_PREFIX}/{artifact_path}")
+        download_paths.append(f"{REMOTE_ROOT_PREFIX}/{artifact_path}")
+
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as executor:
+        list(executor.map(get, download_paths))
 
 
 if __name__ == "__main__":
