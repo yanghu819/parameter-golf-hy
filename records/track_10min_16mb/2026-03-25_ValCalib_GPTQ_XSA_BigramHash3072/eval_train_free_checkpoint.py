@@ -433,7 +433,13 @@ def main() -> int:
     print(f"ttt_slot_steps:{int(os.environ.get('TTT_SLOT_STEPS', 1))}")
     print(f"ttt_slot_adapt_block:{int(os.environ.get('TTT_SLOT_ADAPT_BLOCK', 1))}")
     print(f"ttt_slot_lr:{float(os.environ.get('TTT_SLOT_LR', 3e-4))}")
+    print(f"ttt_slot_update:{os.environ.get('TTT_SLOT_UPDATE', 'adamw').strip().lower()}")
     print(f"ttt_slot_update_every:{int(os.environ.get('TTT_SLOT_UPDATE_EVERY', 2))}")
+    print(f"ttt_slot_update_first_k_chunks:{int(os.environ.get('TTT_SLOT_UPDATE_FIRST_K_CHUNKS', 0))}")
+    print(f"ttt_slot_update_loss_threshold:{float(os.environ.get('TTT_SLOT_UPDATE_LOSS_THRESHOLD', 0.0))}")
+    print(f"ttt_slot_eps:{float(os.environ.get('TTT_SLOT_EPS', 1e-5))}")
+    print(f"ttt_slot_weight_decay:{float(os.environ.get('TTT_SLOT_WEIGHT_DECAY', 1e-8))}")
+    print(f"ttt_slot_delta_clip:{float(os.environ.get('TTT_SLOT_DELTA_CLIP', 10.0))}")
     print(f"val_loss:{val_loss:.8f}")
     print(f"val_bpb:{val_bpb:.8f}")
     return 0
