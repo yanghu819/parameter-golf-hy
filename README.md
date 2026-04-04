@@ -104,7 +104,7 @@ git -C /workspace/parameter-golf-hy pull --ff-only origin main
 That keeps the pod in sync without `rsync`, which also makes reruns easier to reproduce later. This fork also standardizes two small-volume Runpod profiles:
 
 - `RUNPOD_PROFILE=cheap-smoke`: `US-IL-1`, 1 GPU, `<25GB` network volume for cheap smoke runs
-- `RUNPOD_PROFILE=h100-prep|h100-single|h100-formal`: `CA-MTL-1`, `<45GB` network volume for H100 prep and formal runs
+- `RUNPOD_PROFILE=h100-prep|h100-single|h100-formal`: `<45GB` network volume for H100 prep and formal runs in whatever datacenter currently has both H100 stock and network-volume support
 
 Keep every new network volume under `50GB`. Do not rely on the old oversized volume for the formal H100 path.
 
@@ -175,11 +175,11 @@ RUNPOD_PROFILE=cheap-smoke bash runpod.sh volume-create
 RUNPOD_PROFILE=cheap-smoke RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
 ```
 
-Create the H100 formal volume in the H100 datacenter with:
+Create the H100 formal volume in the datacenter where Runpod currently supports both H100 stock and network volumes:
 
 ```bash
-RUNPOD_PROFILE=h100-formal bash runpod.sh volume-create
-RUNPOD_PROFILE=h100-prep RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
+RUNPOD_PROFILE=h100-formal RUNPOD_DATA_CENTER_ID=<h100_dc> bash runpod.sh volume-create
+RUNPOD_PROFILE=h100-prep RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
 ```
 
 Sync and run by commit SHA, not by a floating branch tip:
@@ -193,9 +193,9 @@ bash runpod.sh train POD_ID "$COMMIT_SHA"
 Profile defaults:
 
 - `cheap-smoke`: `NVIDIA GeForce RTX 4090`, `US-IL-1`, volume size `25GB`
-- `h100-prep`: `NVIDIA GeForce RTX 4090`, `CA-MTL-1`, volume size `45GB`
-- `h100-single`: `NVIDIA H100 80GB HBM3`, `CA-MTL-1`, volume size `45GB`
-- `h100-formal`: `8x NVIDIA H100 80GB HBM3`, `CA-MTL-1`, volume size `45GB`
+- `h100-prep`: `NVIDIA GeForce RTX 4090`, volume size `45GB`
+- `h100-single`: `NVIDIA H100 80GB HBM3`, volume size `45GB`
+- `h100-formal`: `8x NVIDIA H100 80GB HBM3`, volume size `45GB`
 - `RUNPOD_IMAGE="runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04"`
 - SSH exposed on `22/tcp`
 - `/workspace` mounted as the attached volume path
@@ -234,18 +234,18 @@ That prepares:
 Then run exact-stack preflight on 1xH100 before the formal 8xH100 run:
 
 ```bash
-RUNPOD_PROFILE=h100-single RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
-RUNPOD_PROFILE=h100-single RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-preflight POD_ID "$COMMIT_SHA"
-RUNPOD_PROFILE=h100-single RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh terminate POD_ID
+RUNPOD_PROFILE=h100-single RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
+RUNPOD_PROFILE=h100-single RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-preflight POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-single RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh terminate POD_ID
 ```
 
 Only after that passes should you start 8xH100:
 
 ```bash
-RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
-RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-preflight POD_ID "$COMMIT_SHA"
-RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-formal POD_ID "$COMMIT_SHA"
-RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh terminate POD_ID
+RUNPOD_PROFILE=h100-formal RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
+RUNPOD_PROFILE=h100-formal RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-preflight POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-formal RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-formal POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-formal RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh terminate POD_ID
 ```
 
 Launch your first training run. The wrapper infers the baseline data path and tokenizer path for `sp1024` automatically.

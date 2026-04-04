@@ -66,25 +66,22 @@ apply_profile() {
             set_if_empty RUNPOD_NAME "$REPO_NAME-h100-prep"
             set_if_empty RUNPOD_GPU_TYPE "NVIDIA GeForce RTX 4090"
             set_if_empty RUNPOD_GPU_COUNT "1"
-            set_if_empty RUNPOD_DATA_CENTER_ID "CA-MTL-1"
             set_if_empty RUNPOD_VOLUME_GB "45"
-            set_if_empty RUNPOD_VOLUME_NAME "$REPO_NAME-h100-ca-mtl-1"
+            set_if_empty RUNPOD_VOLUME_NAME "$REPO_NAME-h100-volume"
             ;;
         h100-single)
             set_if_empty RUNPOD_NAME "$REPO_NAME-h100-single"
             set_if_empty RUNPOD_GPU_TYPE "NVIDIA H100 80GB HBM3"
             set_if_empty RUNPOD_GPU_COUNT "1"
-            set_if_empty RUNPOD_DATA_CENTER_ID "CA-MTL-1"
             set_if_empty RUNPOD_VOLUME_GB "45"
-            set_if_empty RUNPOD_VOLUME_NAME "$REPO_NAME-h100-ca-mtl-1"
+            set_if_empty RUNPOD_VOLUME_NAME "$REPO_NAME-h100-volume"
             ;;
         h100-formal)
             set_if_empty RUNPOD_NAME "$REPO_NAME-h100-formal"
             set_if_empty RUNPOD_GPU_TYPE "NVIDIA H100 80GB HBM3"
             set_if_empty RUNPOD_GPU_COUNT "8"
-            set_if_empty RUNPOD_DATA_CENTER_ID "CA-MTL-1"
             set_if_empty RUNPOD_VOLUME_GB "45"
-            set_if_empty RUNPOD_VOLUME_NAME "$REPO_NAME-h100-ca-mtl-1"
+            set_if_empty RUNPOD_VOLUME_NAME "$REPO_NAME-h100-volume"
             ;;
         *)
             echo "Unknown RUNPOD_PROFILE=$1" >&2
@@ -221,7 +218,7 @@ Environment overrides:
   RUNPOD_IMAGE="runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04"
   RUNPOD_NETWORK_VOLUME_ID=...
   RUNPOD_DATA_CENTER_ID=US-IL-1
-  RUNPOD_VOLUME_NAME=parameter-golf-hy-h100-ca-mtl-1
+  RUNPOD_VOLUME_NAME=parameter-golf-hy-h100-volume
   REPO_OWNER=yanghu819
   REPO_NAME=parameter-golf-hy
 EOF
