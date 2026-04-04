@@ -108,6 +108,14 @@ That keeps the pod in sync without `rsync`, which also makes reruns easier to re
 
 Keep every new network volume under `50GB`. Do not rely on the old oversized volume for the formal H100 path.
 
+For the lowest-cost H100 formal run when the H100 datacenter does not support network volumes, build and use the preloaded exact-runtime image:
+
+```bash
+GITHUB_TOKEN=... bash scripts/build_h100_image.sh
+```
+
+That publishes `ghcr.io/yanghu819/parameter-golf-h100-runtime:torch291-cu128-fa3` by default. You can then pass it as `RUNPOD_IMAGE=...` when creating an H100 pod to avoid paying H100 minutes for `torch==2.9.1+cu128` and `flash_attn_3` installation.
+
 If you already have a Runpod network volume that already satisfies the datacenter and `<50GB` constraints, use it. This fork assumes the repo checkout and downloaded datasets should live under the mounted `/workspace` path so pods can be stopped or deleted without losing state.
 
 ### Training Your First Model (Mac with Apple Silicon)
