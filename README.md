@@ -101,9 +101,14 @@ git push origin main
 git -C /workspace/parameter-golf-hy pull --ff-only origin main
 ```
 
-That keeps the pod in sync without `rsync`, which also makes reruns easier to reproduce later.
+That keeps the pod in sync without `rsync`, which also makes reruns easier to reproduce later. This fork also standardizes two small-volume Runpod profiles:
 
-If you already have a Runpod network volume, use it. This fork assumes the repo checkout and downloaded datasets should live under the mounted `/workspace` path so pods can be stopped or deleted without losing state.
+- `RUNPOD_PROFILE=cheap-smoke`: `US-IL-1`, 1 GPU, `<25GB` network volume for cheap smoke runs
+- `RUNPOD_PROFILE=h100-prep|h100-single|h100-formal`: `CA-MTL-1`, `<45GB` network volume for H100 prep and formal runs
+
+Keep every new network volume under `50GB`. Do not rely on the old oversized volume for the formal H100 path.
+
+If you already have a Runpod network volume that already satisfies the datacenter and `<50GB` constraints, use it. This fork assumes the repo checkout and downloaded datasets should live under the mounted `/workspace` path so pods can be stopped or deleted without losing state.
 
 ### Training Your First Model (Mac with Apple Silicon)
 
@@ -150,27 +155,31 @@ Once you're happy with your local tests, or you want more compute, switch to a r
 
 You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make setup as easy as possible.  
 
-#### Launching a 1x4090 Pod On Runpod
+#### RunPod Profiles And Small Volumes
 
 1. First, [create a Runpod account](https://console.runpod.io/deploy). You should also set up an SSH key in the Settings tab on the left so you can connect to your remote machine. If you're new to this, ask Codex to help you set it up.
 
-2. Once you've set up your account, create a new GPU Cloud Pod. You can choose whichever GPU SKU you'd like. Final leaderboard submissions must run in under 10 minutes on 8xH100s (specifically the SXM variant), but we strongly recommend testing and running experiments on cheaper SKUs first, since an 8xH100 box can cost around $20/hour.
+2. Once you've set up your account, create a new GPU Cloud Pod. Final leaderboard submissions must run in under 10 minutes on 8xH100s (specifically the SXM variant), but you should not use 8xH100 to install dependencies or warm caches.
 
-3. For this fork, the default formal-run path is a single RTX 4090 pod. Do not use 4090/H100 just to install dependencies or warm caches. Run `setup.sh`, `down.sh`, and any smoke checks locally or on a cheaper card first, then start the 4090 only for the real `bash run.sh`.
+3. Use small, profile-specific network volumes:
 
-Create a pod with:
+- `RUNPOD_PROFILE=cheap-smoke` for local/cheap smoke work on a `<25GB` `US-IL-1` volume
+- `RUNPOD_PROFILE=h100-prep` to prepare the H100 datacenter volume without paying H100 prices
+- `RUNPOD_PROFILE=h100-single` for exact-stack single-card H100 preflight
+- `RUNPOD_PROFILE=h100-formal` for the single 8xH100 formal run on a `<45GB` `CA-MTL-1` volume
+
+Create the cheap-smoke volume and pod with:
 
 ```bash
-bash runpod.sh create
+RUNPOD_PROFILE=cheap-smoke bash runpod.sh volume-create
+RUNPOD_PROFILE=cheap-smoke RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
 ```
 
-If you already have a Runpod network volume, inspect it first and create the pod in the same datacenter:
+Create the H100 formal volume in the H100 datacenter with:
 
 ```bash
-bash runpod.sh volumes
-bash runpod.sh stock "NVIDIA L4"
-bash runpod.sh stock "NVIDIA GeForce RTX 4090"
-RUNPOD_NETWORK_VOLUME_ID=... RUNPOD_DATA_CENTER_ID=US-IL-1 bash runpod.sh create
+RUNPOD_PROFILE=h100-formal bash runpod.sh volume-create
+RUNPOD_PROFILE=h100-prep RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
 ```
 
 Sync and run by commit SHA, not by a floating branch tip:
@@ -181,9 +190,12 @@ bash runpod.sh sync POD_ID "$COMMIT_SHA"
 bash runpod.sh train POD_ID "$COMMIT_SHA"
 ```
 
-This defaults to:
+Profile defaults:
 
-- `RUNPOD_GPU_TYPE="NVIDIA GeForce RTX 4090"`
+- `cheap-smoke`: `NVIDIA GeForce RTX 4090`, `US-IL-1`, volume size `25GB`
+- `h100-prep`: `NVIDIA GeForce RTX 4090`, `CA-MTL-1`, volume size `45GB`
+- `h100-single`: `NVIDIA H100 80GB HBM3`, `CA-MTL-1`, volume size `45GB`
+- `h100-formal`: `8x NVIDIA H100 80GB HBM3`, `CA-MTL-1`, volume size `45GB`
 - `RUNPOD_IMAGE="runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04"`
 - SSH exposed on `22/tcp`
 - `/workspace` mounted as the attached volume path
@@ -206,13 +218,35 @@ bash runpod.sh bootstrap POD_ID
 
 That will clone or update the repo on the pod and run `bash setup.sh`.
 
-Download our cached version of FineWeb. We'll use the 1024-token vocabulary for now.
+For the best-record H100 path, prep the exact environment and dataset on the H100 volume first:
 
 ```bash
-bash down.sh
+COMMIT_SHA="$(git rev-parse HEAD)"
+RUNPOD_PROFILE=h100-prep RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-prep POD_ID "$COMMIT_SHA"
 ```
 
-This defaults to the full validation split plus 80 training shards (8B tokens). If you only want a smaller subset while iterating, pass `TRAIN_SHARDS=N`, for example `TRAIN_SHARDS=1 bash down.sh`.
+That prepares:
+
+- `records/.../setup_h100.sh` into `/workspace/parameter-golf-hy/.venv-h100`
+- `TRAIN_SHARDS=80` plus the validation shard
+- tokenizer, HF cache, and bounded uv cache inside `/workspace/parameter-golf-hy`
+
+Then run exact-stack preflight on 1xH100 before the formal 8xH100 run:
+
+```bash
+RUNPOD_PROFILE=h100-single RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
+RUNPOD_PROFILE=h100-single RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-preflight POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-single RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh terminate POD_ID
+```
+
+Only after that passes should you start 8xH100:
+
+```bash
+RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh create
+RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-preflight POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-formal POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-formal RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh terminate POD_ID
+```
 
 Launch your first training run. The wrapper infers the baseline data path and tokenizer path for `sp1024` automatically.
 
@@ -243,6 +277,9 @@ bash runpod.sh bootstrap POD_ID COMMIT_SHA
 bash runpod.sh sync POD_ID COMMIT_SHA
 bash runpod.sh download POD_ID COMMIT_SHA
 bash runpod.sh train POD_ID COMMIT_SHA
+bash runpod.sh h100-prep POD_ID COMMIT_SHA
+bash runpod.sh h100-preflight POD_ID COMMIT_SHA
+bash runpod.sh h100-formal POD_ID COMMIT_SHA
 bash runpod.sh autostop POD_ID 2h
 bash runpod.sh terminate POD_ID
 ```

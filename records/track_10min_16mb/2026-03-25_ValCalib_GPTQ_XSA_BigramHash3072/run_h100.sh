@@ -55,6 +55,7 @@ case "$MODE" in
     smoke)
         export SMOKE_TEST="${SMOKE_TEST:-1}"
         export DISABLE_COMPILE="${DISABLE_COMPILE:-1}"
+        export ALLOW_FA3_FALLBACK="${ALLOW_FA3_FALLBACK:-1}"
         export ITERATIONS="${ITERATIONS:-6}"
         export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-1}"
         export VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
@@ -63,9 +64,22 @@ case "$MODE" in
         export TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-131072}"
         export RUN_ID="${RUN_ID:-record_best_smoke_$(date -u +%Y%m%dT%H%M%SZ)}"
         ;;
+    preflight)
+        export SMOKE_TEST="${SMOKE_TEST:-1}"
+        export DISABLE_COMPILE="${DISABLE_COMPILE:-0}"
+        export ALLOW_FA3_FALLBACK="${ALLOW_FA3_FALLBACK:-0}"
+        export ITERATIONS="${ITERATIONS:-1}"
+        export TRAIN_LOG_EVERY="${TRAIN_LOG_EVERY:-1}"
+        export VAL_LOSS_EVERY="${VAL_LOSS_EVERY:-0}"
+        export WARMUP_STEPS="${WARMUP_STEPS:-0}"
+        export MAX_WALLCLOCK_SECONDS="${MAX_WALLCLOCK_SECONDS:-90}"
+        export TRAIN_BATCH_TOKENS="${TRAIN_BATCH_TOKENS:-16384}"
+        export RUN_ID="${RUN_ID:-record_best_preflight_$(date -u +%Y%m%dT%H%M%SZ)}"
+        ;;
     formal)
         export SMOKE_TEST="${SMOKE_TEST:-0}"
         export DISABLE_COMPILE="${DISABLE_COMPILE:-0}"
+        export ALLOW_FA3_FALLBACK="${ALLOW_FA3_FALLBACK:-0}"
         export BIGRAM_VOCAB_SIZE="${BIGRAM_VOCAB_SIZE:-3072}"
         export BIGRAM_DIM="${BIGRAM_DIM:-112}"
         export WARMDOWN_ITERS="${WARMDOWN_ITERS:-4000}"
@@ -75,7 +89,7 @@ case "$MODE" in
         export RUN_ID="${RUN_ID:-record_best_formal_seed${SEED}_$(date -u +%Y%m%dT%H%M%SZ)}"
         ;;
     *)
-        echo "MODE must be one of: smoke, formal" >&2
+        echo "MODE must be one of: smoke, preflight, formal" >&2
         exit 1
         ;;
 esac
@@ -85,6 +99,8 @@ echo "run_id=$RUN_ID"
 echo "nproc_per_node=$NPROC_PER_NODE"
 echo "data_path=$DATA_PATH"
 echo "tokenizer_path=$TOKENIZER_PATH"
+echo "allow_fa3_fallback=$ALLOW_FA3_FALLBACK"
+echo "disable_compile=$DISABLE_COMPILE"
 
 exec "$VENV_PYTHON" -m torch.distributed.run \
     --standalone \
