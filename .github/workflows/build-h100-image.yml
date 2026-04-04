@@ -1,0 +1,50 @@
+name: Build H100 Runtime Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: GHCR image tag
+        required: false
+        default: torch291-cu128-fa3
+  push:
+    branches:
+      - main
+    paths:
+      - docker/h100-runtime.Dockerfile
+      - scripts/build_h100_image.sh
+      - .github/workflows/build-h100-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/parameter-golf-h100-runtime
+  IMAGE_TAG: ${{ inputs.image_tag || 'torch291-cu128-fa3' }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/h100-runtime.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
