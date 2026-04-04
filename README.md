@@ -166,7 +166,7 @@ You can rent GPUs from anywhere, but OpenAI is partnering with Runpod to make se
 - `RUNPOD_PROFILE=cheap-smoke` for local/cheap smoke work on a `<25GB` `US-IL-1` volume
 - `RUNPOD_PROFILE=h100-prep` to prepare the H100 datacenter volume without paying H100 prices
 - `RUNPOD_PROFILE=h100-single` for exact-stack single-card H100 preflight
-- `RUNPOD_PROFILE=h100-formal` for the single 8xH100 formal run on a `<45GB` `CA-MTL-1` volume
+- `RUNPOD_PROFILE=h100-formal` for the single 8xH100 formal run on a `<45GB` volume in the H100-capable datacenter you select
 
 Create the cheap-smoke volume and pod with:
 
@@ -222,7 +222,7 @@ For the best-record H100 path, prep the exact environment and dataset on the H10
 
 ```bash
 COMMIT_SHA="$(git rev-parse HEAD)"
-RUNPOD_PROFILE=h100-prep RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-prep POD_ID "$COMMIT_SHA"
+RUNPOD_PROFILE=h100-prep RUNPOD_DATA_CENTER_ID=<h100_dc> RUNPOD_NETWORK_VOLUME_ID=... bash runpod.sh h100-prep POD_ID "$COMMIT_SHA"
 ```
 
 That prepares:
