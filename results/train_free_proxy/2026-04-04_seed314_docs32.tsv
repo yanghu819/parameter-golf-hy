@@ -1,0 +1,6 @@
+setting	proxy_docs	checkpoint_kind	ttt_chunk_size	ttt_eval_seq_len	ttt_batch_size	ttt_slot_steps	ttt_slot_adapt_block	ttt_slot_lr	ttt_slot_update_every	val_bpb	gain_vs_baseline_bpb
+baseline_steps0	32	int6_lzma	32	1024	16	0	1	0.0003	2	1.44026872	0.00000000
+adamw_best_like	32	int6_lzma	32	1024	16	1	1	0.0003	2	1.43866070	-0.00160802
+adamw_lr5e4	32	int6_lzma	32	1024	16	1	1	0.0005	2	1.43838508	-0.00188364
+adamw_every1	32	int6_lzma	32	1024	16	1	1	0.0003	1	1.43784464	-0.00242408
+adamw_block2	32	int6_lzma	32	1024	16	1	2	0.0003	2	1.43903649	-0.00123223
