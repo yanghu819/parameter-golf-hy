@@ -1,0 +1,11 @@
+run_id	checkpoint_kind	proxy_docs	ttt_eval_seq_len	ttt_batch_size	ttt_slot_steps	ttt_slot_adapt_block	ttt_slot_lr	ttt_slot_update	ttt_slot_update_every	ttt_slot_update_first_k_chunks	ttt_slot_update_loss_threshold	val_loss	val_bpb	gain_vs_baseline_bpb
+adamw_best_lr5e4	int6_lzma	32	1024	16	1	1	0.0005	adamw	1	0	0.0	2.46387724	1.43725812	-0.00301060
+adamw_best_lr3e4	int6_lzma	32	1024	16	1	1	0.0003	adamw	1	0	0.0	2.46488272	1.43784464	-0.00242408
+adamw_best_lr2e4	int6_lzma	32	1024	16	1	1	0.0002	adamw	1	0	0.0	2.46567112	1.43830454	-0.00196418
+adamw_gate2_lr5e4	int6_lzma	32	1024	16	1	1	0.0005	adamw	2	0	0.0	2.46580919	1.43838508	-0.00188364
+adamw_gate2_lr3e4	int6_lzma	32	1024	16	1	1	0.0003	adamw	2	0	0.0	2.46628168	1.43866070	-0.00160802
+adamw_best_thr330	int6_lzma	32	1024	16	1	1	0.0003	adamw	1	0	3.3	2.46880166	1.44013069	-0.00013803
+adamw_best_thr320	int6_lzma	32	1024	16	1	1	0.0003	adamw	1	0	3.2	2.46881631	1.44013923	-0.00012949
+adamw_gate2_thr330	int6_lzma	32	1024	16	1	1	0.0003	adamw	2	0	3.3	2.46890981	1.44019377	-0.00007495
+adamw_gate2_thr320	int6_lzma	32	1024	16	1	1	0.0003	adamw	2	0	3.2	2.46891170	1.44019488	-0.00007384
+baseline_steps0	int6_lzma	32	1024	16	0	1	0.0003	adamw	2	0	0.0	2.46903828	1.44026872	0.00000000
